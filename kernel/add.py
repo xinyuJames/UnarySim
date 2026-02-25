@@ -8,13 +8,14 @@ class FSUAdd(torch.nn.Module):
         self, 
         hwcfg={
             "mode" : "bipolar", 
-            "scale" : None,
-            "dima" : 0,
-            "depth" : 10,
-            "entry" : None
+            "scale" : None, # non->scaled ; 1->non-scaled
+            # scale_carry: scaling factor
+            "dima" : 0, # which axis to add together TODO: use case of non-zero?
+            "depth" : 10, # for Accumulator bound calculation
+            "entry" : None # operands in parallel
         }, 
         swcfg={
-            "btype" : torch.float, 
+            "btype" : torch.float, # buffer type, used for accumulator
             "stype" : torch.float
         }):
         super(FSUAdd, self).__init__()
@@ -72,15 +73,15 @@ class FSUAdd(torch.nn.Module):
                     self.entry = self.entry
                     self.hwcfg["entry"] = self.entry
 
-            if scale is not None:
+            if scale is not None: # non-scaled
                 # runtime scale will override the default value
-                self.scale_carry.fill_(scale)
+                self.scale_carry.fill_(scale) # 1, since non-scaled
                 self.hwcfg["scale"] = scale
-            else:
+            else: # scaled
                 if self.scale is None:
-                    self.scale_carry.fill_(self.entry)
+                    self.scale_carry.fill_(self.entry) # N, since scaled
                     self.hwcfg["scale"] = self.entry
-                else:
+                else: # ... redundant check
                     self.scale_carry.fill_(self.scale)
                     self.hwcfg["scale"] = self.scale
 
@@ -91,10 +92,14 @@ class FSUAdd(torch.nn.Module):
             self.first = False
         else:
             pass
-
+        
+        # Parallel Counter
         acc_delta = torch.sum(input.type(self.btype), self.dima) - self.offset
-        self.accumulator.data = self.accumulator.add(acc_delta).clamp(self.acc_min, self.acc_max)
+        # Accumulator
+        self.accumulator.data = self.accumulator.add(acc_delta).clamp(self.acc_min, self.acc_max) # this clamp is because of hardware limitation
+        # Compare with carry for output bit stream
         output = torch.ge(self.accumulator, self.scale_carry).type(self.btype)
+        # substract carry from the Accumulator
         self.accumulator.sub_(output * self.scale_carry).clamp_(self.acc_min, self.acc_max)
         return output.type(self.stype)
 

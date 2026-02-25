@@ -55,8 +55,9 @@ class FSUMul(torch.nn.Module):
             self.in_1_prob = in_1_prob
             assert in_1_prob is not None, \
                 "Error: the static multiplier requires in_1_prob in " + str(self) + " class."
+            
             # directly create an unchange bitstream generator for static computation
-            self.source_gen = BinGen(self.in_1_prob, hwcfg, swcfg)()
+            self.source_gen = BinGen(self.in_1_prob, hwcfg, swcfg)() # binary representation of in_1 sequence
             self.bsg = BSGen(self.source_gen, self.rng, {"stype" : torch.int8})
             # rng_idx is used later as an enable signal, get update every cycled
             self.rng_idx = torch.nn.Parameter(torch.zeros(1).type(torch.long), requires_grad=False)
@@ -80,7 +81,7 @@ class FSUMul(torch.nn.Module):
             # for input0 is 0.
             path = in_0.type(torch.int8) & self.bsg(self.rng_idx)
             # conditional update for rng index when input0 is 1. The update simulates enable signal of bs gen.
-            self.rng_idx.data = self.rng_idx.add(in_0.type(torch.long))
+            self.rng_idx.data = self.rng_idx.add(in_0.type(torch.long)) # index 0 is already loaded, so update after generate
             
             if self.mode == "unipolar":
                 return path

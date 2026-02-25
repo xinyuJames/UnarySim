@@ -1,4 +1,6 @@
 import torch
+import math
+import matplotlib.pyplot as plt
 
 class Correlation(torch.nn.Module):
     """
@@ -64,12 +66,14 @@ class ProgError(torch.nn.Module):
         source, 
         hwcfg={
             "scale" : 1, 
-            "mode" : "bipolar"
+            "mode" : "bipolar",
+            "width": 8
         }):
         super(ProgError, self).__init__()
         self.hwcfg = {}
         self.hwcfg["scale"] = hwcfg["scale"]
         self.hwcfg["mode"] = hwcfg["mode"].lower()
+        self.hwcfg["width"] = hwcfg["width"]
 
         # in_value is always binary
         # after scaling, unipolar should be within (0, 1), bipolar should be within (-1, 1).
@@ -83,17 +87,28 @@ class ProgError(torch.nn.Module):
         self.one_cnt = torch.nn.Parameter(torch.zeros(1), requires_grad=False)
         self.pp = torch.nn.Parameter(torch.zeros(1), requires_grad=False)
         self.pe = torch.nn.Parameter(torch.zeros(1), requires_grad=False)
+        self.rmse_per_cycle = []
     
     def Monitor(self, in_1):
         self.one_cnt.data = self.one_cnt.data.add(in_1.type(torch.float))
         self.cycle.data.add_(1)
+        _, pe = self()
+        self.rmse_per_cycle.append(math.sqrt((pe**2).mean().item()))
 
     def forward(self):
-        self.pp.data = self.one_cnt.div(self.cycle)
+        self.pp.data = self.one_cnt.div(self.cycle) # calculate actual output each cycle
         if self.mode == "bipolar":
             self.pp.data = self.pp.mul(2).sub(1)
-        self.pe.data = self.pp.sub(self.source)
+        self.pe.data = self.pp.sub(self.source) # substract with source value
         return self.pp, self.pe
+
+    def plot(self):
+        plt.figure()
+        plt.plot(range(1, len(self.rmse_per_cycle) + 1), self.rmse_per_cycle)
+        plt.xlabel("Cycle")
+        plt.ylabel("RMSE")
+        plt.title("Progressive Error over Cycles")
+        plt.show()
     
     
 class Stability(torch.nn.Module):

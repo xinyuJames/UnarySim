@@ -8,6 +8,7 @@ import torch.autograd.profiler as profiler
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
+# default in-stream
 def test_fsulinear():
     plot_en=False
 
@@ -43,13 +44,17 @@ def test_fsulinear():
             hwcfg["mode"] = mode
             hwcfg_input["mode"] = mode
             hwcfg["scale"] = (in_feature + bias) if scale else 1
-            length = 2**hwcfg["width"]
+            length = 2**hwcfg["width"] # length of unary bit stream, width is in binary
             length_input = 2**hwcfg_input["width"]
 
             result_pe_cycle = []
+
+            # torch Linear instance
             fc = torch.nn.Linear(in_feature, out_feature, bias=bias).to(device)
             
+            # initialize Torch Linear weight+data
             if mode == "unipolar":
+                # quantization, snap to closest grid
                 fc.weight.data = torch.rand(out_feature, in_feature).mul(length).round().div(length).to(device)
                 if bias is True:
                     fc.bias.data = torch.rand(out_feature).mul(length).round().div(length).to(device)
@@ -58,9 +63,11 @@ def test_fsulinear():
                 if bias is True:
                     fc.bias.data = torch.rand(out_feature).mul(2).sub(1).mul(length).round().div(length).to(device)
 
+            # UGEMM Linear instance
             ufc = FSULinear(in_feature, out_feature, bias=bias, weight_ext=fc.weight, bias_ext=fc.bias, 
                               hwcfg=hwcfg, swcfg=swcfg).to(device)
 
+            # quantization, snap to closest grid
             iVec = ((torch.rand(1, in_feature)*length_input).round()/length_input).to(device)
             oVec = fc(iVec)
 

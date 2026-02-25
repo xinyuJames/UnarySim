@@ -6,7 +6,7 @@ def test_rng():
 
     hwcfg = {
         "width" : 4, 
-        "dimr" : 1, 
+        "dimr" : 2, 
         "rng" : "sobol"
     }
     swcfg={

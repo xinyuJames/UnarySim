@@ -56,8 +56,9 @@ def test_fsumul():
             for i in range(2**bitwidth):             # unary cycle count 2^n for n-bit binary data
                 iBS = iVecBS(torch.tensor([i]))      # input bit stream generation
                 iVecPE.Monitor(iBS)                  # input accuracy measurement
-                oVecU = dut_mul(iBS)                 # computing kernel, e.g., multiplication
+                oVecU = dut_mul(iBS, )                 # computing kernel, e.g., multiplication
                 oVecPE.Monitor(oVecU)                # output accuracy measurement
+            oVecPE.plot()
             print("--- %s seconds ---" % (time.time() - start_time))
             print("input error: ", torch.min(iVecPE()[1]), torch.max(iVecPE()[1]))
             print("output error: ", torch.min(oVecPE()[1]), torch.max(oVecPE()[1]))

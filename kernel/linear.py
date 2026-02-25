@@ -85,7 +85,7 @@ class FSULinear(torch.nn.Module):
             scale_add = self.scale
         hwcfg_acc = copy.deepcopy(self.hwcfg)
         hwcfg_acc["scale"] = scale_add
-        hwcfg_acc["entry"] = in_features + bias
+        hwcfg_acc["entry"] = in_features + bias # bias for addition
         # the pc result is unsqueezed before fed to the accumulator, so accumulation dim of FSUAdd is 0.
         hwcfg_acc["dima"] = 0
         self.ACC = FSUAdd(
@@ -126,7 +126,7 @@ class FSULinearPC(torch.nn.Linear):
             "btype" : torch.float, 
             "rtype" : torch.float, 
             "stype" : torch.float
-        }):
+        }): # defined weight_in0 and weight_in1 generator for bipolar, and rng_idx for each of them.
         super(FSULinearPC, self).__init__(in_features, out_features, bias=bias)
         self.hwcfg = {}
         self.hwcfg["width"] = hwcfg["width"]
@@ -164,7 +164,7 @@ class FSULinearPC(torch.nn.Linear):
                 "Error: the hw config 'out_features, in_features' in " + str(self) + " class unmatches the binary weight shape."
             self.weight.data = BinGen(weight_ext, self.hwcfg, self.swcfg)()
         
-        if bias and (bias_ext is not None):
+        if bias and (bias_ext is not None): # bias is 1D
             assert bias_ext.size()[0] == out_features, \
                 "Error: the hw config 'out_features' in " + str(self) + " class unmatches the binary bias shape."
             self.bias.data = BinGen(bias_ext, self.hwcfg, self.swcfg)()
@@ -177,7 +177,7 @@ class FSULinearPC(torch.nn.Linear):
             self.brng = RNG(hwcfg_brng, swcfg)()
 
         # define the kernel linear for input bit 1
-        self.wbsg_i1 = BSGen(self.weight, self.wrng, swcfg)
+        self.wbsg_i1 = BSGen(self.weight, self.wrng, swcfg) 
         self.wrdx_i1 = torch.nn.Parameter(torch.zeros_like(self.weight, dtype=torch.long), requires_grad=False).unsqueeze(0)
         if self.has_bias is True:
             self.bbsg = BSGen(self.bias, self.brng, swcfg)
@@ -194,7 +194,7 @@ class FSULinearPC(torch.nn.Linear):
         batch = input.size()[0]
 
         # generate weight and bias bits for current cycle
-        wbit_i1 = self.wbsg_i1(self.wrdx_i1).type(torch.float)
+        wbit_i1 = self.wbsg_i1(self.wrdx_i1).type(torch.float) # fancy indexing, the rng is [2**width], but every element index into it and compared with binary
         if wbit_i1.size()[0] != batch:
             wbit_i1 = torch.cat(batch*[wbit_i1], 0)
             self.wrdx_i1 = torch.cat(batch*[self.wrdx_i1], 0)

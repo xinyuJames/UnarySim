@@ -24,12 +24,13 @@ def get_sysrand_seq(width=8):
 class RNG(torch.nn.Module):
     """
     Random number generator to return a random sequence of size [2**width] and type torch.nn.Parameter.
+    Output number in range [0,2**width].
     """
     def __init__(
         self, 
         hwcfg={
             "width" : 8, 
-            "dimr" : 1, 
+            "dimr" : 1, # different dimensions prevent correlation. eg. make a matrix, each column using a dimension, the columns are not related to each other
             "rng" : "Sobol"
         },
         swcfg={
@@ -96,7 +97,7 @@ class RawScale(torch.nn.Module):
         self.quantile_lower = 0.5 - self.quantile / 2
         self.quantile_upper = 0.5 + self.quantile / 2
 
-    def forward(self, raw):
+    def forward(self, raw): # window a percential from 50th, and normalized with biggest abs num in window. 
         lower_bound = torch.quantile(raw, self.quantile_lower)
         upper_bound = torch.quantile(raw, self.quantile_upper)
         scale = torch.max(lower_bound.abs(), upper_bound.abs())
@@ -107,6 +108,7 @@ class RawScale(torch.nn.Module):
 class BinGen(torch.nn.Module):
     """
     Convert source data within [-1, 1] to binary integer data of type torch.nn.Parameter for comparison
+    uni/bipolar form and *= 2**width
     """
     def __init__(
         self, 

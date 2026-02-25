@@ -9,7 +9,7 @@ import math
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 def test_fsumul_in_stream():
-    bitwidth = 12
+    bitwidth = 4
     depth = 4
     hwcfg = {
             "width" : bitwidth,
@@ -18,7 +18,7 @@ def test_fsumul_in_stream():
             "dima" : 0,
             "rng" : "sobol",
             "scale" : 1,
-            "depth" : 10,
+            "depth" : bitwidth, # "depth" : 10,
             "entry" : None,
             "static" : False
         }
@@ -77,9 +77,10 @@ def test_fsumul_in_stream():
             print(mode)
             print("input 0 error: ", "min:", torch.min(prob_0_PE()[1]), "max:", torch.max(prob_0_PE()[1]))
             print("input 1 error: ", "min:", torch.min(prob_1_PE()[1]), "max:", torch.max(prob_1_PE()[1]))
+            oVecPE.plot()
 
             print("output error: ", "min:", torch.min(oVecPE()[1]), "max:", torch.max(oVecPE()[1]), "rmse:", torch.sqrt(torch.mean(torch.mul(oVecPE()[1], oVecPE()[1]))), "bias:", torch.mean(oVecPE()[1]))
-            # result_pe = oVecPE()[1].cpu().numpy().flatten()
+            result_pe = oVecPE()[1].cpu().numpy().flatten()
             # fig = plt.hist(result_pe, bins='auto')  # arguments are passed to np.histogram
             # plt.title("Histogram for final output error")
             # plt.show()

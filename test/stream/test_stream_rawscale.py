@@ -11,7 +11,7 @@ def test_rawscale():
             "dimr" : 1,
             "rng" : "sobol",
             "scale" : 1,
-            "quantile": 0.95
+            "quantile": 0.2
         }
     swcfg = {
             "rtype" : torch.float,

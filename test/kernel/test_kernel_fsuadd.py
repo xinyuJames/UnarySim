@@ -11,7 +11,7 @@ def test_fsuadd():
     hwcfg = {
             "width" : 12,
             "mode" : "bipolar",
-            "dimr" : 1,
+            "dimr" : 1, # for RNG
             "dima" : 0,
             "rng" : "sobol",
             "scale" : 1,
@@ -52,7 +52,7 @@ def test_fsuadd():
 
             iVecSource = BinGen(iVec, hwcfg, swcfg)().to(device)
             iVecRNG = RNG(hwcfg, swcfg)().to(device)
-            iVecBS = BSGen(iVecSource, iVecRNG, swcfg).to(device)
+            iVecBS = BSGen(iVecSource, iVecRNG, swcfg).to(device) # RNG generated bit stream
             hwcfg["scale"] = 1
             iVecPE = ProgError(iVec, hwcfg).to(device)
             print("iVecPE cfg", iVecPE.hwcfg)
@@ -77,9 +77,11 @@ def test_fsuadd():
                     rmse = torch.sqrt(torch.mean(torch.mul(oVecPE()[1], oVecPE()[1])))
                     result_pe_cycle.append(1-rmse.item())
                 print("--- %s seconds ---" % (time.time() - start_time))
+                print(oVecU)
                 print("RNG: "+rng+", data: "+mode+", scaled: "+str(scale))
                 print("input error:  ", "min: ", torch.min(iVecPE()[1]).item(), "max: ", torch.max(iVecPE()[1]).item())
                 print("output error: ", "min: ", torch.min(oVecPE()[1]).item(), "max: ", torch.max(oVecPE()[1]).item(), "RMSE: ", rmse.item())
+                oVecPE.plot()
                 print()
                 if plot_en is True:
                     result_pe = oVecPE()[1].cpu().numpy()
