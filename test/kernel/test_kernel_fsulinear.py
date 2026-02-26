@@ -8,12 +8,12 @@ import torch.autograd.profiler as profiler
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-# default in-stream
+# default in-stream, batch = 1
 def test_fsulinear():
     plot_en=False
 
     hwcfg_input={
-        "width" : 12,
+        "width" : 8,
         "rng" : "Sobol",
         "dimr" : 1
     }
@@ -98,6 +98,7 @@ def test_fsulinear():
                 print("input error:  ", "min: ", torch.min(iVecPE()[1]).item(), "max: ", torch.max(iVecPE()[1]).item())
                 print("output error: ", "min: ", torch.min(oVecPE()[1]).item(), "max: ", torch.max(oVecPE()[1]).item(), "RMSE: ", rmse.item())
                 print()
+                oVecPE.plot()
                 if plot_en is True:
                     result_pe = oVecPE()[1].cpu().numpy()
                     print("error distribution=========>")

@@ -8,7 +8,7 @@ class FSUAdd(torch.nn.Module):
         self, 
         hwcfg={
             "mode" : "bipolar", 
-            "scale" : None, # non->scaled ; 1->non-scaled
+            "scale" : None, # none->scaled ; 1->non-scaled
             # scale_carry: scaling factor
             "dima" : 0, # which axis to add together TODO: use case of non-zero?
             "depth" : 10, # for Accumulator bound calculation
@@ -60,7 +60,7 @@ class FSUAdd(torch.nn.Module):
         self.first = True
 
     def forward(self, input, scale=None, entry=None):
-        if self.first:
+        if self.first: # first to set up
             if entry is not None:
                 # runtime entry will override the default value
                 self.entry = entry
@@ -81,7 +81,7 @@ class FSUAdd(torch.nn.Module):
                 if self.scale is None:
                     self.scale_carry.fill_(self.entry) # N, since scaled
                     self.hwcfg["scale"] = self.entry
-                else: # ... redundant check
+                else: 
                     self.scale_carry.fill_(self.scale)
                     self.hwcfg["scale"] = self.scale
 
@@ -94,7 +94,7 @@ class FSUAdd(torch.nn.Module):
             pass
         
         # Parallel Counter
-        acc_delta = torch.sum(input.type(self.btype), self.dima) - self.offset
+        acc_delta = torch.sum(input.type(self.btype), self.dima) - self.offset # in uLinear, this step is done in LinearPC
         # Accumulator
         self.accumulator.data = self.accumulator.add(acc_delta).clamp(self.acc_min, self.acc_max) # this clamp is because of hardware limitation
         # Compare with carry for output bit stream

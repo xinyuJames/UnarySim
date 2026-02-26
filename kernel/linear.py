@@ -202,7 +202,7 @@ class FSULinearPC(torch.nn.Linear):
         
         ibit_i1 = input.unsqueeze(1).type(torch.float)
         obin_i1 = torch.empty(0, device=input.device)
-        torch.matmul(ibit_i1, wbit_i1.transpose(1, 2), out=obin_i1)
+        torch.matmul(ibit_i1, wbit_i1.transpose(1, 2), out=obin_i1) # AND gate in the uMUL, 
         obin_i1.squeeze_(1)
         
         if self.has_bias is True:
