@@ -78,7 +78,6 @@ class FSUMul(torch.nn.Module):
 
     def FSUMul_forward(self, in_0, in_1=None):
         if self.static is True:
-            # for input0 is 0.
             path = in_0.type(torch.int8) & self.bsg(self.rng_idx)
             # conditional update for rng index when input0 is 1. The update simulates enable signal of bs gen.
             self.rng_idx.data = self.rng_idx.add(in_0.type(torch.long)) # index 0 is already loaded, so update after generate

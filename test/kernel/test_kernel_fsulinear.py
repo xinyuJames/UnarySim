@@ -11,14 +11,14 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 # default in-stream, batch = 1
 def test_fsulinear():
     plot_en=False
-
+    cfg_width = 4
     hwcfg_input={
-        "width" : 8,
+        "width" : cfg_width,
         "rng" : "Sobol",
         "dimr" : 1
     }
     hwcfg={
-        "width" : 12,
+        "width" : cfg_width,
         "mode" : "bipolar",
         "scale" : None,
         "depth" : 20,
@@ -113,3 +113,4 @@ def test_fsulinear():
 
 if __name__ == '__main__':
     test_fsulinear()
+

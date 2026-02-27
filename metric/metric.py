@@ -147,7 +147,7 @@ class Stability(torch.nn.Module):
         self.progerr.Monitor(in_1)
         self.cycle = self.progerr.cycle
         _, self.pe = self.progerr()
-        self.cycle_to_stable.add_(torch.gt(self.pe.abs(), self.threshold).type(torch.float).mul_(self.cycle - self.cycle_to_stable))
+        self.cycle_to_stable.add_(torch.gt(self.pe.abs(), self.threshold).type(torch.float).mul_(self.cycle - self.cycle_to_stable)) # snap to current cycle
         
     def forward(self):
         self.stability = 1 - self.cycle_to_stable.clamp(1, self.cycle.item()).div(self.cycle)
