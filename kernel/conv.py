@@ -7,7 +7,7 @@ from UnarySim.kernel import HUBLinearFunction
 from UnarySim.kernel import FXPLinearFunction
 from UnarySim.kernel import TLUTLinearFXPFXPFunction, TLUTLinearFXPFPFunction, TLUTLinearFPFPFunction
 from UnarySim.kernel import FSUAdd, rshift_offset
-from torch.cuda.amp import autocast
+from torch.amp import autocast
 
 class FSUConv2d(torch.nn.Module):
     """
@@ -94,7 +94,7 @@ class FSUConv2d(torch.nn.Module):
             hwcfg_acc,
             self.swcfg)
 
-    @autocast()
+    @autocast('cuda')
     def forward(self, input, scale=None, entry=None):
         pc = self.PC(input)
         output = self.ACC(pc.unsqueeze(0), scale, entry)
@@ -335,7 +335,7 @@ class FSUConv2dPC(torch.nn.Conv2d):
 
             return obin_fold_i1 + obin_fold_i0
 
-    @autocast()
+    @autocast('cuda')
     def forward(self, input):
         if self.wtc:
             return self.FSUConv2d_PC_wtc(input).type(self.swcfg["stype"])
@@ -493,7 +493,7 @@ class HUBConv2d(torch.nn.Conv2d):
         self.rshift_w = None
         self.rshift_o = None
     
-    @autocast()
+    @autocast('cuda')
     def forward(self, input):
         # See the autograd section for explanation of what happens here.
         self.rshift_i, self.rshift_w, self.rshift_o = \
@@ -581,7 +581,7 @@ class FXPConv2d(torch.nn.Conv2d):
         self.rshift_w = None
         self.rshift_o = None
     
-    @autocast()
+    @autocast('cuda')
     def forward(self, input):
         # See the autograd section for explanation of what happens here.
         self.rshift_i, self.rshift_w, _ = \

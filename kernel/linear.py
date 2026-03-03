@@ -3,7 +3,7 @@ import math
 import copy
 from UnarySim.stream import RNG, BinGen, BSGen
 from UnarySim.kernel import FSUAdd, rshift_offset
-from torch.cuda.amp import autocast
+from torch.amp import autocast
 
 class FSULinear(torch.nn.Module):
     """
@@ -92,7 +92,7 @@ class FSULinear(torch.nn.Module):
             hwcfg_acc,
             self.swcfg)
 
-    @autocast()
+    @autocast('cuda')
     def forward(self, input, scale=None, entry=None):
         pc = self.PC(input)
         output = self.ACC(pc.unsqueeze(0), scale, entry)
@@ -263,7 +263,7 @@ class FSULinearPC(torch.nn.Linear):
 
             return obin_i1 + obin_i0
 
-    @autocast()
+    @autocast('cuda')
     def forward(self, input):
         assert len(input.size()) == 2, \
             "Error: the input of the " + str(self) + " class needs 2 dimensions."
@@ -409,7 +409,7 @@ class HUBLinear(torch.nn.Linear):
         self.rshift_w = None
         self.rshift_o = None
         
-    @autocast()
+    @autocast('cuda')
     def forward(self, input):
         # See the autograd section for explanation of what happens here.
         self.rshift_i, self.rshift_w, self.rshift_o = \
@@ -553,7 +553,7 @@ class FXPLinear(torch.nn.Linear):
         self.rshift_w = None
         self.rshift_o = None
     
-    @autocast()
+    @autocast('cuda')
     def forward(self, input):
         # See the autograd section for explanation of what happens here.
         self.rshift_i, self.rshift_w, _ = \

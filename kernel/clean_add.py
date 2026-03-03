@@ -5,9 +5,7 @@ class FSUAdd(torch.nn.Module):
     Unary addition supporting scaled/non-scaled, unipolar/bipolar.
 
     scale=True:  scaled addition, output represents sum/entry (average).
-                 scale_carry = entry.
     scale=False: non-scaled addition, output represents raw sum.
-                 scale_carry = 1. May saturate for large entry in unipolar mode.
     """
     def __init__(
         self,
@@ -26,10 +24,9 @@ class FSUAdd(torch.nn.Module):
 
         # data representation
         self.mode = hwcfg["mode"].lower()
-        assert self.mode in ["unipolar", "bipolar"], \
-            "Error: 'mode' requires 'unipolar' or 'bipolar'."
+        assert self.mode in ["unipolar", "bipolar"], "Error: 'mode' requires 'unipolar' or 'bipolar'."
 
-        self.scaled = hwcfg["scale"]        # True or False
+        self.scaled = hwcfg["scale"]
         self.dima = hwcfg["dima"]
         self.depth = hwcfg["depth"]
         self.entry = hwcfg["entry"]
@@ -40,8 +37,8 @@ class FSUAdd(torch.nn.Module):
         self.stype = swcfg["stype"]
         self.btype = swcfg["btype"]
 
-        # parameters set on first forward call
-        self.scale_carry = torch.nn.Parameter(torch.ones(1), requires_grad=False)
+        # parameter initialization
+        self.acc_th = torch.nn.Parameter(torch.ones(1), requires_grad=False)
         self.offset = torch.nn.Parameter(torch.zeros(1), requires_grad=False)
         self.accumulator = torch.nn.Parameter(torch.zeros(1), requires_grad=False)
         self.initialized = False
@@ -52,23 +49,27 @@ class FSUAdd(torch.nn.Module):
             if self.entry is None:
                 self.entry = input.size()[self.dima]
 
-            # set scale_carry based on scaled flag
+            # set acc_th based on scaled flag
             if self.scaled:
-                self.scale_carry.fill_(self.entry)      # divide by N
+                self.acc_th.fill_(self.entry)
             else:
-                self.scale_carry.fill_(1)               # no division
+                self.acc_th.fill_(1)
 
             # bipolar offset centers the parallel counter output around 0
             if self.mode == "bipolar":
-                self.offset.data = (self.entry - self.scale_carry) / 2
+                self.offset.data = (self.entry - self.acc_th) / 2
 
             self.initialized = True
 
-        # Parallel Counter: sum along dima, subtract offset
+        # ====================== ALGO BEGIN ==================== #
+        # Parallel Counter
         acc_delta = torch.sum(input.type(self.btype), self.dima) - self.offset
-        # Accumulator: integrate
+        # Accumulator
         self.accumulator.data = self.accumulator.add(acc_delta).clamp(self.acc_min, self.acc_max)
-        # Output carry
-        output = torch.ge(self.accumulator, self.scale_carry).type(self.btype)
-        self.accumulator.sub_(output * self.scale_carry).clamp_(self.acc_min, self.acc_max)
+        # Output
+        output = torch.ge(self.accumulator, self.acc_th).type(self.btype)
+        # Accumulator update
+        self.accumulator.sub_(output * self.acc_th).clamp_(self.acc_min, self.acc_max)
+        # ====================== ALGO END ==================== #
+
         return output.type(self.stype)

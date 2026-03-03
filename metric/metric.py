@@ -78,6 +78,7 @@ class ProgError(torch.nn.Module):
         # in_value is always binary
         # after scaling, unipolar should be within (0, 1), bipolar should be within (-1, 1).
         # therefore, clamping with (-1, 1) always works
+
         self.scale = hwcfg["scale"]
         self.mode = hwcfg["mode"].lower()
         self.source = torch.clamp(source/self.scale, -1., 1.)

@@ -7,7 +7,7 @@ import torch.nn.functional as F
 from UnarySim.kernel import FSUAdd
 from UnarySim.kernel import FSUMul
 from UnarySim.kernel import FSULinear
-from torch.cuda.amp import autocast
+from torch.amp import autocast
 from typing import List, Tuple, Optional, overload, Union
 from UnarySim.kernel import HUBHardsigmoid, HUBHardtanh
 from UnarySim.kernel import truncated_normal, Round
@@ -123,7 +123,7 @@ class FSUMGUCell(torch.nn.Module):
         if hx.size(1) != self.hidden_size:
             raise RuntimeError("hidden{} has inconsistent hidden_size: got {}, expected {}".format(hidden_label, hx.size(1), self.hidden_size))
 
-    @autocast()
+    @autocast('cuda')
     def forward(self, input: Tensor, hx: Tensor) -> Tensor:
         self.check_forward_input(input)
         self.check_forward_hidden(input, hx, '')
@@ -189,7 +189,7 @@ class HUBMGUCell(torch.nn.Module):
         self.hwcfg_ope = copy.deepcopy(self.hwcfg)
         self.hwcfg_ope["scale"] = 1
 
-    @autocast()
+    @autocast('cuda')
     def forward(self, input: Tensor, hx: Tensor) -> Tensor:
         if hx is None:
             hx = torch.zeros(input.size()[0], self.hidden_size, dtype=input.dtype, device=input.device)

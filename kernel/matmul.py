@@ -1,5 +1,5 @@
 import torch
-from torch.cuda.amp import autocast
+from torch.amp import autocast
 
 from UnarySim.kernel.clean_add import FSUAdd
 from UnarySim.kernel import FSUMul
@@ -83,7 +83,7 @@ class FSUMatMul(torch.nn.Module):
         }
         self.ACC = FSUAdd(hwcfg_acc, self.swcfg)
 
-    @autocast()
+    @autocast('cuda')
     def forward(self, input):
         # [batch, in_feature] bit stream expected
         batch = input.size()[0]
