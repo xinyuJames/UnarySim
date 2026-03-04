@@ -10,7 +10,7 @@ class FSUAdd(torch.nn.Module):
             "mode" : "bipolar", 
             "scale" : None, # none->scaled ; 1->non-scaled
             # scale_carry: scaling factor
-            "dima" : 0, # which axis to add together TODO: use case of non-zero?
+            "dima" : 0, # which axis to add together
             "depth" : 10, # for Accumulator bound calculation
             "entry" : None # operands in parallel
         }, 
