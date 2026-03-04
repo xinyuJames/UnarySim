@@ -149,6 +149,7 @@ test/test_training.py
 /app/quantum/
 /app/uBrain/
 /app/uSystolic/
+/data
 
 saved_model*
 *.csv
