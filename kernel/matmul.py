@@ -3,6 +3,7 @@ from torch.amp import autocast
 
 from UnarySim.kernel.clean_add import FSUAdd
 from UnarySim.kernel import FSUMul
+from UnarySim.stream import RNG, BinGen, BSGen
 
 class FSUMatMul(torch.nn.Module):
     """
@@ -92,9 +93,112 @@ class FSUMatMul(torch.nn.Module):
         input_exp = input.unsqueeze(1).expand(batch, self.out_features, self.in_features)
 
         # static weight: [out_feature, in_feature] ; input: [batch, out_features, in_features] 
-        products = self.MUL(input_exp)
+        self.products = self.MUL(input_exp)
 
         # Accumulate, dim=2, we have [batch, out_feature]
-        output = self.ACC(products)
+        output = self.ACC(self.products)
+
+        return output
+
+
+class FSULinear(torch.nn.Module):
+    """
+    Fully connected layer using FSUMatMul (uMul + uAdd) with optional bias.
+    Step 1: matmul  — FSUMatMul computes input × weight^T
+    Step 2: bias add — FSUMul generates bias bitstream, FSUAdd combines with matmul output
+    """
+
+    def __init__(
+            self,
+            in_features,
+            out_features,
+            bias=True,
+            weight_ext=None,
+            bias_ext=None,
+            hwcfg={
+                "width" : 8,
+                "mode" : "bipolar",
+                "scale" : True,
+                "depth" : 12,
+                "rng" : "Sobol",
+                "dimr" : 1
+            },
+            swcfg={
+                "btype" : torch.float,
+                "rtype" : torch.float,
+                "stype" : torch.float
+            }
+    ):
+        super(FSULinear, self).__init__()
+        self.in_features = in_features
+        self.out_features = out_features
+        self.has_bias = bias and (bias_ext is not None)
+
+        self.hwcfg = {}
+        self.hwcfg["width"] = hwcfg["width"]
+        self.hwcfg["mode"] = hwcfg["mode"].lower()
+        self.hwcfg["scale"] = hwcfg["scale"]
+        self.hwcfg["depth"] = hwcfg["depth"]
+        self.hwcfg["rng"] = hwcfg["rng"].lower()
+        self.hwcfg["dimr"] = hwcfg["dimr"]
+
+        self.swcfg = {}
+        self.swcfg["btype"] = swcfg["btype"]
+        self.swcfg["rtype"] = swcfg["rtype"]
+        self.swcfg["stype"] = swcfg["stype"]
+
+        hwcfg_matmul = {
+            "width" : self.hwcfg["width"],
+            "mode" : self.hwcfg["mode"],
+            "scale" : self.hwcfg["scale"],
+            "depth" : self.hwcfg["depth"],
+            "rng" : self.hwcfg["rng"],
+            "dimr" : self.hwcfg["dimr"]
+        }
+
+        self.MatMul = FSUMatMul(
+            self.in_features,
+            self.out_features,
+            weight_ext,
+            hwcfg_matmul,
+            swcfg
+        )
+
+        if self.has_bias:
+            hwcfg_brng = {
+                "width" : self.hwcfg["width"],
+                "rng" : self.hwcfg["rng"],
+                "dimr" : self.hwcfg["dimr"]
+            }
+            self.bias_bin = BinGen(bias_ext, self.hwcfg, swcfg)()
+            self.bias_rng = RNG(hwcfg_brng, swcfg)()
+            self.bias_bsg = BSGen(self.bias_bin, self.bias_rng, swcfg)
+            self.bias_idx = torch.nn.Parameter(torch.zeros_like(bias_ext, dtype=torch.long), requires_grad=False)
+
+            hwcfg_add = {
+                "mode" : self.hwcfg["mode"],
+                "scale" : hwcfg["scale"],
+                "depth" : self.hwcfg["depth"],
+                "dima" : 0,
+                "entry" : 2
+            }
+            self.Add = FSUAdd(hwcfg_add, swcfg)
+
+    @autocast('cuda')
+    def forward(self, input):
+        # matmul: [batch, in_features] -> [batch, out_features] bitstream
+        self.matmul_out = self.MatMul(input)
+
+        if self.has_bias:
+            # generate bias bitstream from BSGen
+            self.bias_bs = self.bias_bsg(self.bias_idx).type(self.swcfg["stype"])
+            self.bias_idx.data.add_(1)
+            # expand bias [out_features] -> [batch, out_features] to match matmul_out
+            bias_exp = self.bias_bs.unsqueeze(0).expand_as(self.matmul_out)
+            # stack along dim 0: [2, batch, out_features], then add
+            combined = torch.stack([self.matmul_out, bias_exp], dim=0)
+            output = self.Add(combined)
+        else:
+            output = self.matmul_out
 
         return output

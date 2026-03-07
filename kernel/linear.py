@@ -2,8 +2,10 @@ import torch
 import math
 import copy
 from UnarySim.stream import RNG, BinGen, BSGen
-from UnarySim.kernel import FSUAdd, rshift_offset
+from UnarySim.kernel.add import FSUAdd
+from UnarySim.kernel import rshift_offset
 from torch.amp import autocast
+
 
 class FSULinear(torch.nn.Module):
     """

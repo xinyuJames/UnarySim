@@ -1,7 +1,4 @@
-# Unary MLP evaluation: bipolar mode, configurable scaled/non-scaled
-#
-# Change 'scaled' below to switch between scaled and non-scaled addition.
-# ProgError scale is set per-layer to match FSULinear's internal FSUAdd scale.
+# Unary MLP
 
 import torch
 import torch.nn as nn
@@ -13,11 +10,11 @@ import time
 import os
 
 from UnarySim.kernel.utils import *
-from UnarySim.kernel.linear import FSULinear
+from UnarySim.kernel.matmul import FSULinear
 from UnarySim.kernel.relu import FSUReLU
 from UnarySim.stream.gen import RNG, BinGen, BSGen
 from UnarySim.metric.metric import ProgError
-from model import MLP3_clamp_eval
+from model import MLP3_clamp_eval, MLP3_clamp_eval_clean
 
 if __name__ == '__main__':
     cwd = os.getcwd()
@@ -34,7 +31,7 @@ if __name__ == '__main__':
 
     # load binary model
     model_path = cwd + "/saved_model_state_dict" + "_8_clamp"
-    model_clamp = MLP3_clamp_eval()
+    model_clamp = MLP3_clamp_eval_clean()
     model_clamp.to(device)
     model_clamp.load_state_dict(torch.load(model_path))
     model_clamp.eval()
@@ -54,12 +51,12 @@ if __name__ == '__main__':
     # ========== Configuration ==========
     bitwidth = 8
     mode = "bipolar"
-    scaled = True
+    scaled = False
     bias = True
     rng = "Sobol"
     rng_dim = 1
     relu_buf_dep = 4
-    sample_cnt = 1000
+    sample_cnt = 10
     length = 2 ** bitwidth
 
     # layer sizes
@@ -81,7 +78,7 @@ if __name__ == '__main__':
     hwcfg = {
         "width" : bitwidth,
         "mode" : mode,
-        "scale" : None if scaled else 1,
+        "scale" : scaled,
         "depth" : 12,
         "rng" : rng,
         "dimr" : rng_dim
@@ -98,7 +95,7 @@ if __name__ == '__main__':
     hwcfg_relu = {"depth" : relu_buf_dep}
     swcfg_relu = {"btype" : torch.float, "stype" : torch.float}
 
-    # per-layer ProgError configs (scale must match FSUAdd scale)
+    # per-layer ProgError configs
     hwcfg_pe_input = {"scale" : 1, "mode" : mode, "width" : bitwidth}
     hwcfg_pe_fc1   = {"scale" : fc1_scale, "mode" : mode, "width" : bitwidth}
     hwcfg_pe_relu1 = {"scale" : fc1_scale, "mode" : mode, "width" : bitwidth}
@@ -106,13 +103,17 @@ if __name__ == '__main__':
     hwcfg_pe_relu2 = {"scale" : fc2_scale, "mode" : mode, "width" : bitwidth}
     hwcfg_pe_fc3   = {"scale" : fc3_scale, "mode" : mode, "width" : bitwidth}
 
-    # ========== Unary Evaluation ==========
     correct_binary = 0
     correct_unary = 0
     total = 0
     start_cnt = 0
     current_index = 0
     cycle_correct = torch.zeros(length).to(device)
+    # per-layer RMSE (averaged over images)
+    input_cycle_rmse = torch.zeros(length).to(device)
+    fc1_cycle_rmse = torch.zeros(length).to(device)
+    fc2_cycle_rmse = torch.zeros(length).to(device)
+    fc3_cycle_rmse = torch.zeros(length).to(device)
 
     start_time = time.time()
 
@@ -126,12 +127,12 @@ if __name__ == '__main__':
             images, labels = data[0].to(device), data[1].to(device)
             total += labels.size()[0]
 
-            # reference binary mlp
+            # reference binary mlp, golden model
             outputs_binary = model_clamp(images)
             _, predicted_binary = torch.max(outputs_binary.data, 1)
             correct_binary += (predicted_binary == labels).sum().item()
 
-            # unary part
+            # unary bit stream generator
             image = images.view(-1, 32 * 32)
             image_SRC = BinGen(image, hwcfg, swcfg)().to(device)
             image_RNG = RNG(hwcfg_rng, swcfg)().to(device)
@@ -171,12 +172,22 @@ if __name__ == '__main__':
                 idx = torch.zeros(image_SRC.size()).type(torch.long).to(device)
                 image_bs = image_BSG(idx + i)
                 image_ERR.Monitor(image_bs)
-                fc1_unary_out   = fc1_unary(image_bs)
+
+                # unary mlp calculation
+                fc1_unary_out = fc1_unary(image_bs)
+                fc1_ERR.Monitor(fc1_unary_out)
                 relu1_unary_out = relu1_unary(fc1_unary_out)
-                fc2_unary_out   = fc2_unary(relu1_unary_out)
+                fc2_unary_out = fc2_unary(relu1_unary_out)
+                fc2_ERR.Monitor(fc2_unary_out)
                 relu2_unary_out = relu2_unary(fc2_unary_out)
-                fc3_unary_out   = fc3_unary(relu2_unary_out)
+                fc3_unary_out = fc3_unary(relu2_unary_out)
                 fc3_ERR.Monitor(fc3_unary_out)
+
+                # per-layer RMSE
+                input_cycle_rmse[i] += torch.sqrt(torch.mean(image_ERR()[1] ** 2))
+                fc1_cycle_rmse[i] += torch.sqrt(torch.mean(fc1_ERR()[1] ** 2))
+                fc2_cycle_rmse[i] += torch.sqrt(torch.mean(fc2_ERR()[1] ** 2))
+                fc3_cycle_rmse[i] += torch.sqrt(torch.mean(fc3_ERR()[1] ** 2))
 
                 _, predicted_unary = torch.max(fc3_ERR()[0], 1)
                 if predicted_unary == labels:
@@ -200,3 +211,17 @@ if __name__ == '__main__':
     with open("cycle_accuracy_mlp_%s_%s.csv" % (mode, scale_str), "w+") as f:
         for i in result:
             f.write(str(i) + ", \n")
+
+    # per-layer RMSE plot
+    cycles = list(range(length))
+    plt.figure()
+    plt.plot(cycles, (input_cycle_rmse / total).cpu().numpy(), label="input")
+    plt.plot(cycles, (fc1_cycle_rmse / total).cpu().numpy(), label="fc1")
+    plt.plot(cycles, (fc2_cycle_rmse / total).cpu().numpy(), label="fc2")
+    plt.plot(cycles, (fc3_cycle_rmse / total).cpu().numpy(), label="fc3")
+    plt.xlabel("Cycle")
+    plt.ylabel("RMSE")
+    plt.title("Per-layer RMSE (%s, %s)" % (mode, scale_str))
+    plt.legend()
+    plt.show()
+

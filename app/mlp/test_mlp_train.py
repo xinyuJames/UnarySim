@@ -11,7 +11,7 @@ import time
 import os
 
 from UnarySim.kernel.utils import *
-from model import MLP3, MLP3_clamp_eval
+from model import MLP3, MLP3_clamp_eval, MLP3_clamp_eval_clean
 
 if __name__ == '__main__':
     cwd = os.getcwd()
@@ -38,7 +38,8 @@ if __name__ == '__main__':
     # model = LeNet()
     # model = LeNet_clamp()
     # model = MLP3(layer_width)
-    model = MLP3_clamp_eval()
+    # model = MLP3_clamp_eval()
+    model = MLP3_clamp_eval_clean()
     # model = MLP3_clamp_train()
     model.to(device)
     # summary(model, torch.zeros((1, 1, 32, 32)).to(device))
@@ -94,7 +95,7 @@ if __name__ == '__main__':
     # model_path = cwd + "/saved_model_state_dict" + "_" + str(bitwidth) + "_bitwidth_" + str(layer_width) + "_layerwidth_" + str(lr) + "_lr"
     # model = MLP3(layer_width)
     model_path = cwd + "/saved_model_state_dict" + "_" + str(bitwidth) + "_clamp"
-    model = MLP3_clamp_eval()
+    model = MLP3_clamp_eval_clean()
     model.load_state_dict(torch.load(model_path))
     model.eval()
     model.to(device)

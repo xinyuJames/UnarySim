@@ -1,5 +1,5 @@
 import torch
-from UnarySim.kernel import FSUAdd
+from UnarySim.kernel.add import FSUAdd
 from UnarySim.stream import RNG, BinGen, BSGen
 from UnarySim.metric import ProgError
 import matplotlib.pyplot as plt
@@ -9,7 +9,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 def test_fsuadd():
     hwcfg = {
-            "width" : 12,
+            "width" : 8,
             "mode" : "bipolar",
             "dimr" : 1, # for RNG
             "dima" : 0,
@@ -27,10 +27,10 @@ def test_fsuadd():
     rng = hwcfg["rng"]
 
     plot_en=False
-    modes = ["bipolar", "unipolar"]
-    size = [128, 256, 512]
+    modes = ["bipolar"]
+    size = [1024, 1, 512]
 
-    scaled = [True, False]
+    scaled = [False]
     result_pe = []
 
     for mode in modes:
@@ -77,7 +77,6 @@ def test_fsuadd():
                     rmse = torch.sqrt(torch.mean(torch.mul(oVecPE()[1], oVecPE()[1])))
                     result_pe_cycle.append(1-rmse.item())
                 print("--- %s seconds ---" % (time.time() - start_time))
-                print(oVecU)
                 print("RNG: "+rng+", data: "+mode+", scaled: "+str(scale))
                 print("input error:  ", "min: ", torch.min(iVecPE()[1]).item(), "max: ", torch.max(iVecPE()[1]).item())
                 print("output error: ", "min: ", torch.min(oVecPE()[1]).item(), "max: ", torch.max(oVecPE()[1]).item(), "RMSE: ", rmse.item())

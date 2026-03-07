@@ -131,6 +131,41 @@ class MLP3_clamp_eval(nn.Module):
         self.relu2_out = F.relu(self.fc2_out)
         self.fc3_out = self.fc3(self.relu2_out).clamp(-1, 1)
         return F.softmax(self.fc3_out, dim=1)
+    
+
+class MLP3_clamp_eval_clean(nn.Module):
+    """
+    Two-stage linear: matmul → clamp → add bias → clamp.
+    Matches the hardware behavior of linear_clean (matmul.py FSULinear).
+    """
+    def __init__(self):
+        super(MLP3_clamp_eval_clean, self).__init__()
+        self.fc1 = nn.Linear(32*32, 512)
+        self.fc2 = nn.Linear(512, 512)
+        self.fc3 = nn.Linear(512, 10)
+
+        self.fc1_out = torch.zeros(1)
+        self.relu1_out = torch.zeros(1)
+        self.fc2_out = torch.zeros(1)
+        self.relu2_out = torch.zeros(1)
+        self.fc3_out = torch.zeros(1)
+
+    def _linear_two_stage(self, x, layer):
+        # Stage 1: matmul only, then clamp
+        matmul_out = F.linear(x, layer.weight).clamp(-1, 1)
+        # Stage 2: add bias, then clamp
+        if layer.bias is not None:
+            return (matmul_out + layer.bias).clamp(-1, 1)
+        return matmul_out
+
+    def forward(self, x):
+        x = x.view(-1, 32*32)
+        self.fc1_out = self._linear_two_stage(x, self.fc1)
+        self.relu1_out = F.relu(self.fc1_out)
+        self.fc2_out = self._linear_two_stage(self.relu1_out, self.fc2)
+        self.relu2_out = F.relu(self.fc2_out)
+        self.fc3_out = self._linear_two_stage(self.relu2_out, self.fc3)
+        return F.softmax(self.fc3_out, dim=1)
 
     
 class MLP3_clamp_train(nn.Module):

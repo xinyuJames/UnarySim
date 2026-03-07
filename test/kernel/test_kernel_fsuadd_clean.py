@@ -1,19 +1,19 @@
 import torch
 import time
 import matplotlib.pyplot as plt
-from UnarySim.kernel.matmul import FSUMatMul
+from UnarySim.kernel.clean_add import FSUAdd
 from UnarySim.stream import RNG, BinGen, BSGen
 from UnarySim.metric import ProgError, Stability
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-def test_fsumatmul():
+def test_fsuadd():
 
     # ====================== SETUP BEGIN ==================== #
-    # matrix multiplication setting
-    batch = 1
-    in_feature = 1024
-    out_feature = 512
+    # addition setting
+    entry = 1024
+    out_size = [1, 512]
+    acc_dim = 0
 
     # unary bit stream setting
     width = 8
@@ -23,8 +23,8 @@ def test_fsumatmul():
     # metric setting
     stability_threshold = 0.2
 
-    # number of terms (different inputs, same weight)
-    num_terms = 100
+    # number of terms (different inputs)
+    num_terms = 10
 
     hwcfg_rng = {
         "width" : width,
@@ -45,10 +45,18 @@ def test_fsumatmul():
         "rng" : "Sobol",
         "dimr" : 1
     }
+
+    hwcfg_add = {
+        "mode" : mode,
+        "scale" : scale,
+        "depth" : width + 4,
+        "dima" : acc_dim,
+        "entry" : entry
+    }
     # ====================== SETUP END ==================== #
 
     length = 2 ** width
-    pe_scale = in_feature if scale else 1
+    pe_scale = entry if scale else 1
 
     hwcfg_pe = {
         "width" : width,
@@ -68,11 +76,7 @@ def test_fsumatmul():
         "threshold" : stability_threshold
     }
 
-    # Generate one weight matrix
-    if mode == "unipolar":
-        weight_raw = torch.rand(out_feature, in_feature).mul(length).round().div(length).to(device)
-    elif mode == "bipolar":
-        weight_raw = torch.rand(out_feature, in_feature).mul(2).sub(1).mul(length).round().div(length).to(device)
+    input_size = [entry] + out_size
 
     # Collect results across terms
     all_rmse = []
@@ -88,21 +92,21 @@ def test_fsumatmul():
     for term in range(num_terms):
         # Generate new input for each term
         if mode == "unipolar":
-            input_raw = torch.rand(batch, in_feature).mul(length).round().div(length).to(device)
+            input_raw = torch.rand(input_size).mul(length).round().div(length).to(device)
         elif mode == "bipolar":
-            input_raw = torch.rand(batch, in_feature).mul(2).sub(1).mul(length).round().div(length).to(device)
+            input_raw = torch.rand(input_size).mul(2).sub(1).mul(length).round().div(length).to(device)
 
         # DUT — fresh instance per term (internal state resets)
-        dut = FSUMatMul(in_feature, out_feature, weight_raw, hwcfg, swcfg).to(device)
+        dut = FSUAdd(hwcfg_add, swcfg).to(device)
 
         # Expected output
-        exp_output = torch.matmul(input_raw, weight_raw.t())
+        exp_output = torch.sum(input_raw, acc_dim)
 
         if not scale:
             if mode == "unipolar":
-                exp_output = exp_output.clamp(0,1)
+                exp_output = exp_output.clamp(0, 1)
             if mode == "bipolar":
-                exp_output = exp_output.clamp(-1,1)
+                exp_output = exp_output.clamp(-1, 1)
 
         # Metric trackers
         error_tracker = ProgError(exp_output, hwcfg_pe).to(device)
@@ -127,7 +131,7 @@ def test_fsumatmul():
 
                 _, pe_i = error_tracker()
                 rmse_i = torch.sqrt(torch.mean(pe_i ** 2)).item()
-                pe_cycle_sum[i] += (rmse_i)
+                pe_cycle_sum[i] += rmse_i
 
             _, pe = error_tracker()
             rmse = torch.sqrt(torch.mean(pe ** 2)).item()
@@ -151,10 +155,10 @@ def test_fsumatmul():
 
     # ====================== AVERAGE RESULTS ==================== #
     print("===========================")
-    print("mode: %s, scaled: %s, batch: %d, in_feature: %d, out_feature: %d, num_terms: %d" % (mode, scale, batch, in_feature, out_feature, num_terms))
+    print("mode: %s, scaled: %s, entry: %d, num_terms: %d" % (mode, scale, entry, num_terms))
     print("avg RMSE: ", sum(all_rmse) / num_terms)
-    print(f"avg input cycle to stables [min:max]: [{sum(all_in_cts_min) / num_terms}:{sum(all_in_cts_max) / num_terms}]")
-    print(f"avg output cycle to stable [min:max]: [{sum(all_in_cts_min) / num_terms}:{sum(all_in_cts_max) / num_terms}]")
+    print(f"avg input cycle to stable [min:max]: [{sum(all_in_cts_min) / num_terms}:{sum(all_in_cts_max) / num_terms}]")
+    print(f"avg output cycle to stable [min:max]: [{sum(all_out_cts_min) / num_terms}:{sum(all_out_cts_max) / num_terms}]")
     print("avg input stability: ", sum(all_in_stab_mean) / num_terms)
     print("avg output stability: ", sum(all_out_stab_mean) / num_terms)
 
@@ -164,9 +168,10 @@ def test_fsumatmul():
     plt.plot(range(length), pe_cycle_avg)
     plt.xlabel("Cycle")
     plt.ylabel("RMSE")
-    plt.title("Progressive RMSE (%s, scaled=%s)" % (mode, scale))
+    plt.title("Progressive RMSE (%s, scaled=%s, entry=%d)" % (mode, scale, entry))
     plt.show()
 
 
 if __name__ == '__main__':
-    test_fsumatmul()
+    test_fsuadd()
+

@@ -103,3 +103,4 @@ class FSUAdd(torch.nn.Module):
         self.accumulator.sub_(output * self.scale_carry).clamp_(self.acc_min, self.acc_max)
         return output.type(self.stype)
 
+

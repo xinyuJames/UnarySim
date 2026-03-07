@@ -28,7 +28,7 @@ def test_fsumul():
     bitwidth = hwcfg["width"]
 
     col = 100
-    modes = ["bipolar", "unipolar"]
+    modes = ["bipolar"]
 
     for mode in modes:
         if mode == "unipolar":

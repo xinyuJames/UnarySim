@@ -153,4 +153,3 @@ class Stability(torch.nn.Module):
     def forward(self):
         self.stability = 1 - self.cycle_to_stable.clamp(1, self.cycle.item()).div(self.cycle)
         return self.stability
-

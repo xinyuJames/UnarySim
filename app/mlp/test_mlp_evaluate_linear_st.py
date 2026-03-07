@@ -127,7 +127,7 @@ with torch.no_grad():
 
         fc2_out = fc2(fc1_act)
         fc2_scale = fc2_out.abs().max()
-        fc2_out = fc2_out / fc2_scale
+        fc2_out = fc2_out / fc2_scale #TODO: seems to make scaled add work
         fc2_act = F.relu(fc2_out)
 
         fc3_out = fc3(fc2_act)
