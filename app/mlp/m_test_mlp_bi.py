@@ -56,7 +56,7 @@ if __name__ == '__main__':
     rng = "Sobol"
     rng_dim = 1
     relu_buf_dep = 4
-    sample_cnt = 1000
+    sample_cnt = 1500
     length = 2 ** bitwidth
 
     # layer sizes

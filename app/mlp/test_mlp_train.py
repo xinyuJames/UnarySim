@@ -96,6 +96,7 @@ if __name__ == '__main__':
     # model = MLP3(layer_width)
     model_path = cwd + "/saved_model_state_dict" + "_" + str(bitwidth) + "_clamp"
     model = MLP3_clamp_eval_clean()
+    # model = MLP3_clamp_eval()
     model.load_state_dict(torch.load(model_path))
     model.eval()
     model.to(device)
